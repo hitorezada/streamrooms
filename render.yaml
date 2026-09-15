@@ -6,7 +6,7 @@ services:
     # --include=dev is required because NODE_ENV=production would otherwise
     # make npm skip devDependencies (@types/*, typescript, vite) that the
     # build itself needs — the flag only affects install, not the runtime env.
-    buildCommand: "cd client && npm install --include=dev && npm run build && cd ../server && npm install --include=dev && npx prisma generate && npx prisma migrate deploy"
+    buildCommand: "cd client && npm install --include=dev && npm run build && cd ../server && npm install --include=dev && npx prisma generate && npx prisma migrate deploy && npm run build"
     startCommand: "cd server && npm start"
     healthCheckPath: /api/health
     envVars:
