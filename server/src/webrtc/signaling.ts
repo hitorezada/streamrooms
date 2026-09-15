@@ -111,8 +111,16 @@ export function registerSignaling(io: Server) {
 
     socket.on(
       "webrtc:ice-candidate",
-      ({ targetSocketId, candidate }: { targetSocketId: string; candidate: unknown }) => {
-        io.to(targetSocketId).emit("webrtc:ice-candidate", { fromSocketId: socket.id, candidate });
+      ({
+        targetSocketId,
+        candidate,
+        role,
+      }: {
+        targetSocketId: string;
+        candidate: unknown;
+        role: "sharer" | "viewer";
+      }) => {
+        io.to(targetSocketId).emit("webrtc:ice-candidate", { fromSocketId: socket.id, candidate, role });
       }
     );
 

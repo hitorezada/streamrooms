@@ -137,9 +137,12 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          // Tagged "sharer" — see onIceCandidate below for why this matters
+          // when two people mutually watch each other.
           socket!.emit("webrtc:ice-candidate", {
             targetSocketId: viewerSocketId,
             candidate: event.candidate,
+            role: "sharer",
           });
         }
       };
@@ -176,14 +179,26 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
       await sender.setParameters(params).catch(() => {});
     }
 
+    // When two people mutually watch each other, both a sharerConnections
+    // entry and a viewerConnections entry exist for the same peer socketId
+    // at once. Candidates from that peer are ambiguous without knowing which
+    // of *their* connections generated it: a candidate from their "sharer"
+    // connection (them broadcasting to me) belongs on my viewer connection
+    // to them, and vice versa — so route by the sender's declared role
+    // instead of guessing with a map fallback.
     async function onIceCandidate({
       fromSocketId,
       candidate,
+      role,
     }: {
       fromSocketId: string;
       candidate: RTCIceCandidateInit;
+      role: "sharer" | "viewer";
     }) {
-      const pc = sharerConnectionsRef.current.get(fromSocketId) ?? viewerConnectionsRef.current.get(fromSocketId);
+      const pc =
+        role === "sharer"
+          ? viewerConnectionsRef.current.get(fromSocketId)
+          : sharerConnectionsRef.current.get(fromSocketId);
       if (pc) await pc.addIceCandidate(candidate).catch(() => {});
     }
 
@@ -285,7 +300,11 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          socket.emit("webrtc:ice-candidate", { targetSocketId: sharerSocketId, candidate: event.candidate });
+          socket.emit("webrtc:ice-candidate", {
+            targetSocketId: sharerSocketId,
+            candidate: event.candidate,
+            role: "viewer",
+          });
         }
       };
 
