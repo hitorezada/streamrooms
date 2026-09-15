@@ -11,7 +11,9 @@ function required(name: string, fallback?: string): string {
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 4000),
-  clientOrigin: required("CLIENT_ORIGIN", "http://localhost:5173"),
+  // Render (and similar PaaS) inject the public URL as RENDER_EXTERNAL_URL,
+  // so CLIENT_ORIGIN doesn't need to be hardcoded per-deploy there.
+  clientOrigin: required("CLIENT_ORIGIN", process.env.RENDER_EXTERNAL_URL ?? "http://localhost:5173"),
 
   jwtAccessSecret: required("JWT_ACCESS_SECRET"),
   jwtRefreshSecret: required("JWT_REFRESH_SECRET"),

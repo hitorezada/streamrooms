@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: streamrooms
+    runtime: node
+    plan: free
+    buildCommand: "cd client && npm install && npm run build && cd ../server && npm install && npx prisma generate && npx prisma migrate deploy"
+    startCommand: "cd server && npm start"
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:./dev.db
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN_DAYS
+        value: "30"
+      - key: STUN_URLS
+        value: "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302"

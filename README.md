@@ -87,7 +87,7 @@ Abra `http://localhost:5173` em duas janelas/navegadores diferentes (ou modo an�
 
 ## Hospedagem de teste
 
-Para testar com seus amigos antes de migrar para a VPS, a forma mais simples é rodar o backend em produção servindo também o build do frontend (um único processo):
+O backend em produção serve também o build do frontend (um único processo) — dá pra publicar em qualquer serviço que rode um processo Node (Render, Railway, Fly.io, etc.):
 
 ```bash
 cd client && npm run build
@@ -96,7 +96,21 @@ npm run build
 NODE_ENV=production npm start
 ```
 
-Isso serve a API, o Socket.IO e os arquivos estáticos do React todos na mesma porta — pode ser publicado em qualquer serviço que rode um processo Node (Render, Railway, Fly.io, etc.). Configure lá as variáveis de ambiente da tabela acima e aponte um domínio com HTTPS.
+### Deploy automático no Render (recomendado para teste)
+
+O repositório já inclui um [render.yaml](render.yaml) (Render Blueprint), então a configuração é praticamente automática:
+
+1. Crie uma conta gratuita em [render.com](https://render.com).
+2. No dashboard, clique em **New > Blueprint** e conecte o repositório do GitHub deste projeto.
+3. O Render lê o `render.yaml`, cria o serviço web e gera sozinho os segredos JWT (`generateValue: true`). Clique em **Apply** para confirmar.
+4. Aguarde o build (instala e builda `client` e `server`, roda as migrações do Prisma automaticamente).
+5. A URL pública (algo como `https://streamrooms.onrender.com`) é detectada automaticamente pelo backend via `RENDER_EXTERNAL_URL` — não precisa configurar `CLIENT_ORIGIN` manualmente.
+
+A cada novo `git push` na branch conectada, o Render builda e publica a nova versão sozinho.
+
+**Limitação do plano free:** o disco é temporário — o banco SQLite (`dev.db`) reseta a cada deploy ou reinício por inatividade. Isso é normal e esperado numa hospedagem de teste; quando for pra VPS definitiva, troque para Postgres (ver seção abaixo).
+
+Isso serve a API, o Socket.IO e os arquivos estáticos do React todos na mesma porta. Configure lá as variáveis de ambiente da tabela acima e aponte um domínio com HTTPS.
 
 **Importante sobre WebRTC em produção:** com HTTPS funcionando e o STUN público, a maioria das conexões entre amigos vai funcionar direto (P2P). Para os casos em que a rede de alguém bloqueia P2P (redes corporativas, certas operadoras/CGNAT), você vai precisar de um servidor TURN — é exatamente para isso que o projeto já reserva `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL`. Rode um [coturn](https://github.com/coturn/coturn) na sua VPS quando migrar e preencha essas variáveis.
 
