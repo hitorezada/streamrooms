@@ -1,0 +1,111 @@
+// Prisma schema — SQLite for local/test, switch datasource "url" to a Postgres
+// connection string when migrating to the VPS. Models stay the same either way.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  avatarUrl    String?
+  bio          String?
+  status       String   @default("offline") // "online" | "offline"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens     RefreshToken[]
+  ownedServers      Server[]         @relation("ServerOwner")
+  serverMemberships ServerMember[]
+
+  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
+
+  friendshipsInitiated Friendship[] @relation("FriendshipUserA")
+  friendshipsReceived  Friendship[] @relation("FriendshipUserB")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// SQLite has no native enum support in Prisma; status is constrained to
+// "PENDING" | "ACCEPTED" | "DECLINED" in application code instead.
+model FriendRequest {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+// Normalized friendship edge, userAId is always the lexicographically smaller id
+// so a pair only ever has one row and lookups are trivial either direction.
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+}
+
+model Server {
+  id        String   @id @default(cuid())
+  name      String
+  imageUrl  String?
+  inviteCode String  @unique
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  owner   User           @relation("ServerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members ServerMember[]
+  rooms   Room[]
+}
+
+model ServerMember {
+  id       String   @id @default(cuid())
+  serverId String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([serverId, userId])
+}
+
+// Every server gets exactly 5 of these, created automatically on server creation.
+model Room {
+  id       String @id @default(cuid())
+  serverId String
+  name     String
+  position Int
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@unique([serverId, position])
+}

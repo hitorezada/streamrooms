@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+
+# SQLite dev database
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
+# recovered static mirror (kept locally only, not part of the new project)
+recovered-site/
