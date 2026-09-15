@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoomConnection } from "../hooks/useRoomConnection";
 import { ParticipantCard } from "../components/ParticipantCard";
@@ -36,6 +36,11 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
   const focusedSocketId = watchedStreams.keys().next().value as string | undefined;
   const focusedStream = focusedSocketId ? watchedStreams.get(focusedSocketId) : undefined;
   const focusedSharer = participants.find((p) => p.socketId === focusedSocketId);
+
+  const [selfPreviewVisible, setSelfPreviewVisible] = useState(true);
+  useEffect(() => {
+    if (isSharing) setSelfPreviewVisible(true);
+  }, [isSharing]);
 
   function handleWatch(socketId: string) {
     if (focusedSocketId && focusedSocketId !== socketId) {
@@ -89,7 +94,18 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: 20, position: "relative" }}>
-          {isSharing && localStream && <SelfPreview stream={localStream} />}
+          {isSharing && localStream && selfPreviewVisible && (
+            <SelfPreview stream={localStream} onClose={() => setSelfPreviewVisible(false)} />
+          )}
+          {isSharing && localStream && !selfPreviewVisible && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => setSelfPreviewVisible(true)}
+              style={{ position: "absolute", bottom: 20, right: 20, fontSize: 12, padding: "6px 12px", zIndex: 10 }}
+            >
+              Mostrar preview
+            </button>
+          )}
           {focusedStream ? (
             <StreamPlayer
               stream={focusedStream}
@@ -155,8 +171,10 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
 
 // Small muted self-monitor so the person sharing can confirm what's actually
 // going out — audio is always muted here since it's their own machine's
-// output, playing it back would just echo.
-function SelfPreview({ stream }: { stream: MediaStream }) {
+// output, playing it back would just echo. Resizable via the native CSS
+// resize handle (drag the bottom-right corner) since that's zero-JS and
+// works consistently, rather than hand-rolling multi-corner drag logic.
+function SelfPreview({ stream, onClose }: { stream: MediaStream; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -169,7 +187,13 @@ function SelfPreview({ stream }: { stream: MediaStream }) {
         position: "absolute",
         bottom: 20,
         right: 20,
-        width: 220,
+        width: 320,
+        height: 190,
+        minWidth: 160,
+        minHeight: 100,
+        maxWidth: "80vw",
+        maxHeight: "80vh",
+        resize: "both",
         borderRadius: "var(--radius-md)",
         overflow: "hidden",
         border: "2px solid var(--live-red)",
@@ -178,7 +202,13 @@ function SelfPreview({ stream }: { stream: MediaStream }) {
         background: "#000",
       }}
     >
-      <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", display: "block" }} />
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }}
+      />
       <div
         style={{
           position: "absolute",
@@ -193,6 +223,27 @@ function SelfPreview({ stream }: { stream: MediaStream }) {
       >
         Sua transmissão
       </div>
+      <button
+        onClick={onClose}
+        title="Ocultar preview"
+        style={{
+          position: "absolute",
+          top: 6,
+          right: 6,
+          width: 22,
+          height: 22,
+          borderRadius: 6,
+          background: "rgba(0,0,0,0.6)",
+          color: "white",
+          fontSize: 14,
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }
