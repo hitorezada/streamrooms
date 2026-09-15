@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoomConnection } from "../hooks/useRoomConnection";
 import { ParticipantCard } from "../components/ParticipantCard";
@@ -20,6 +21,7 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
     participants,
     mySocketId,
     isSharing,
+    localStream,
     startSharing,
     stopSharing,
     watchedStreams,
@@ -76,7 +78,8 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
           <ShareControls isSharing={isSharing} onStart={startSharing} onStop={stopSharing} />
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: 20, position: "relative" }}>
+          {isSharing && localStream && <SelfPreview stream={localStream} />}
           {focusedStream ? (
             <StreamPlayer
               stream={focusedStream}
@@ -136,6 +139,50 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
           ))}
         </div>
       </aside>
+    </div>
+  );
+}
+
+// Small muted self-monitor so the person sharing can confirm what's actually
+// going out — audio is always muted here since it's their own machine's
+// output, playing it back would just echo.
+function SelfPreview({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: 20,
+        right: 20,
+        width: 220,
+        borderRadius: "var(--radius-md)",
+        overflow: "hidden",
+        border: "2px solid var(--live-red)",
+        boxShadow: "var(--shadow-md)",
+        zIndex: 10,
+        background: "#000",
+      }}
+    >
+      <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", display: "block" }} />
+      <div
+        style={{
+          position: "absolute",
+          top: 6,
+          left: 6,
+          background: "rgba(0,0,0,0.6)",
+          padding: "2px 8px",
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        Sua transmissão
+      </div>
     </div>
   );
 }

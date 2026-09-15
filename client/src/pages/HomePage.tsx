@@ -24,6 +24,20 @@ export function HomePage() {
 
   useEffect(() => {
     load();
+
+    // No dedicated realtime channel for friend requests yet, so poll gently
+    // and also refetch when the tab regains focus — cheap, and covers the
+    // common case (you get added while looking at another tab) instantly.
+    const interval = setInterval(load, 10_000);
+    function onFocus() {
+      load();
+    }
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [load]);
 
   async function accept(id: string) {

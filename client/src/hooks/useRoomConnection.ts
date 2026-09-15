@@ -123,6 +123,18 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
+      // Cap encoding from the start ("auto" defaults) instead of leaving it
+      // unbounded until the viewer touches the quality selector — an
+      // untouched connection was previously encoding at whatever bitrate the
+      // browser felt like, which is most of what was driving high GPU usage.
+      const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (videoSender) {
+        const params = videoSender.getParameters();
+        const { scaleResolutionDownBy, maxBitrate } = qualityToParams("auto");
+        params.encodings = [{ scaleResolutionDownBy, ...(maxBitrate ? { maxBitrate } : {}) }];
+        await videoSender.setParameters(params).catch(() => {});
+      }
+
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           socket!.emit("webrtc:ice-candidate", {
@@ -214,14 +226,28 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
   // ---- actions ----
   const startSharing = useCallback(
     async (opts: { withAudio: boolean; frameRate?: number }) => {
+      // Capturing at the monitor's native resolution (often 1440p/4K) forces
+      // the encoder to process far more pixels than needed and burns GPU —
+      // capping the capture itself at 1080p keeps quality good while cutting
+      // that cost a lot. frameRate is similarly capped, not just "ideal", so
+      // a 144Hz screen doesn't get captured at 144fps by default.
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: opts.frameRate ?? 30 },
+        video: {
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: opts.frameRate ?? 30, max: opts.frameRate ?? 30 },
+        },
         audio: opts.withAudio,
       });
 
-      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
-        stopSharing();
-      });
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        // "motion" biases the encoder toward smooth framerate over per-frame
+        // sharpness, which is both lighter on the GPU and the better trade-off
+        // for game/video content than the "detail" default some browsers use.
+        videoTrack.contentHint = "motion";
+        videoTrack.addEventListener("ended", () => stopSharing());
+      }
 
       localStreamRef.current = stream;
       setLocalStream(stream);

@@ -19,6 +19,9 @@ export function qualityToParams(quality: StreamQuality): QualityParams {
       return { scaleResolutionDownBy: 1, maxBitrate: 10_000_000 };
     case "auto":
     default:
-      return { scaleResolutionDownBy: 1, maxBitrate: undefined };
+      // Still capped (not truly unbounded) — an uncapped encoder tends to
+      // chase the source's full native bitrate, which is most of what was
+      // driving the high GPU usage reported in testing.
+      return { scaleResolutionDownBy: 1, maxBitrate: 4_000_000 };
   }
 }
