@@ -44,6 +44,16 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
     watch(socketId);
   }
 
+  // Capturing this tab/window while it's also hardware-decoding someone
+  // else's stream is a known way to get a black frame out (the decoded
+  // video renders in a hardware overlay plane that screen capture can't
+  // see). Stopping the watch first removes that <video> from the page
+  // entirely, so there's nothing left to conflict with.
+  async function handleStartSharing(opts: { withAudio: boolean; frameRate: number }) {
+    if (focusedSocketId) stopWatching(focusedSocketId);
+    await startSharing(opts);
+  }
+
   function handleLeave() {
     if (isSharing) stopSharing();
     if (focusedSocketId) stopWatching(focusedSocketId);
@@ -75,7 +85,7 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
         </header>
 
         <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)" }}>
-          <ShareControls isSharing={isSharing} onStart={startSharing} onStop={stopSharing} />
+          <ShareControls isSharing={isSharing} onStart={handleStartSharing} onStop={stopSharing} />
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: 20, position: "relative" }}>
