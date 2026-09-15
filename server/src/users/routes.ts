@@ -41,7 +41,6 @@ usersRouter.patch("/me", async (req: AuthedRequest, res) => {
   return res.json({
     id: user.id,
     username: user.username,
-    email: user.email,
     avatarUrl: user.avatarUrl,
     bio: user.bio,
     status: user.status,

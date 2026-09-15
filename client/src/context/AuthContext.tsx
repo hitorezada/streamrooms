@@ -1,12 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, setAccessToken, refreshSession } from "../api/client";
+import { api, refreshSession } from "../api/client";
 import type { User } from "../types";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (usernameOrEmail: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  loginWithDiscord: () => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (patch: Partial<User>) => void;
@@ -33,29 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (usernameOrEmail: string, password: string) => {
-    const data = await api.post<{ accessToken: string; user: User }>("/auth/login", {
-      usernameOrEmail,
-      password,
-    });
-    setAccessToken(data.accessToken);
-    setUser(data.user);
-  }, []);
-
-  const register = useCallback(async (username: string, email: string, password: string) => {
-    const data = await api.post<{ accessToken: string; user: User }>("/auth/register", {
-      username,
-      email,
-      password,
-    });
-    setAccessToken(data.accessToken);
-    setUser(data.user);
+  const loginWithDiscord = useCallback(() => {
+    window.location.href = "/api/auth/discord";
   }, []);
 
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => {});
-    setAccessToken(null);
     setUser(null);
+    window.location.href = "/login";
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -68,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, loginWithDiscord, logout, refreshUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

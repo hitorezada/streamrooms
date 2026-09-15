@@ -1,56 +1,42 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
-export function LoginPage() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+const ERROR_MESSAGES: Record<string, string> = {
+  discord_denied: "Você cancelou a conexão com o Discord.",
+  invalid_state: "Sessão de login expirou, tente novamente.",
+  discord_failed: "Não foi possível conectar com o Discord. Tente de novo.",
+};
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      await login(usernameOrEmail, password);
-      navigate("/app");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao entrar.");
-    } finally {
-      setLoading(false);
+export function LoginPage() {
+  const { loginWithDiscord } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("error");
+    if (code) {
+      setError(ERROR_MESSAGES[code] ?? "Erro ao entrar.");
+      window.history.replaceState({}, "", "/login");
     }
-  }
+  }, []);
 
   return (
     <AuthShell title="Entrar">
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <input
-          className="input"
-          placeholder="Usuário ou e-mail"
-          value={usernameOrEmail}
-          onChange={(e) => setUsernameOrEmail(e.target.value)}
-          autoFocus
-          required
-        />
-        <input
-          className="input"
-          type="password"
-          placeholder="Senha"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {error && <span style={{ color: "var(--live-red)", fontSize: 13 }}>{error}</span>}
-        <button className="btn btn-primary" type="submit" disabled={loading}>
-          {loading ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
-      <p style={{ marginTop: 18, fontSize: 13, color: "var(--text-2)", textAlign: "center" }}>
-        Não tem conta? <Link to="/register" style={{ color: "var(--blue-400)" }}>Criar conta</Link>
+      <p style={{ textAlign: "center", color: "var(--text-2)", fontSize: 14, marginTop: -6, marginBottom: 20 }}>
+        Use sua conta do Discord para entrar. Sem senha, sem cadastro.
       </p>
+      {error && (
+        <div style={{ color: "var(--live-red)", fontSize: 13, textAlign: "center", marginBottom: 14 }}>{error}</div>
+      )}
+      <button
+        className="btn btn-primary"
+        onClick={loginWithDiscord}
+        style={{ width: "100%", background: "#5865F2", fontSize: 15 }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#4752C4")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#5865F2")}
+      >
+        Entrar com Discord
+      </button>
     </AuthShell>
   );
 }

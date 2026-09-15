@@ -24,3 +24,7 @@ services:
         value: "30"
       - key: STUN_URLS
         value: "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302"
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false

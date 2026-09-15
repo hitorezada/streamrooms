@@ -11,15 +11,14 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  email        String   @unique
-  passwordHash String
-  avatarUrl    String?
-  bio          String?
-  status       String   @default("offline") // "online" | "offline"
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  username  String   @unique
+  discordId String   @unique
+  avatarUrl String?
+  bio       String?
+  status    String   @default("offline") // "online" | "offline"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   refreshTokens     RefreshToken[]
   ownedServers      Server[]         @relation("ServerOwner")

@@ -20,6 +20,17 @@ export const env = {
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? "15m",
   jwtRefreshExpiresInDays: Number(process.env.JWT_REFRESH_EXPIRES_IN_DAYS ?? 30),
 
+  discordClientId: required("DISCORD_CLIENT_ID"),
+  discordClientSecret: required("DISCORD_CLIENT_SECRET"),
+  // The backend's own callback URL (not the frontend). Defaults to
+  // RENDER_EXTERNAL_URL + the callback path so Render deploys don't need it set.
+  discordRedirectUri: required(
+    "DISCORD_REDIRECT_URI",
+    process.env.RENDER_EXTERNAL_URL
+      ? `${process.env.RENDER_EXTERNAL_URL}/api/auth/discord/callback`
+      : "http://localhost:4000/api/auth/discord/callback"
+  ),
+
   iceServers: buildIceServers(),
 };
 

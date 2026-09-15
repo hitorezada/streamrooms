@@ -1,74 +1,82 @@
 import { Router } from "express";
-import { z } from "zod";
+import crypto from "crypto";
 import { prisma } from "../db/prisma";
-import { hashPassword, verifyPassword } from "./password";
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from "./jwt";
 import { setRefreshCookie, clearRefreshCookie, REFRESH_COOKIE } from "./cookies";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth";
+import { env } from "../config/env";
+import { buildAuthorizeUrl, exchangeCodeForToken, fetchDiscordUser, discordAvatarUrl } from "./discord";
 
 export const authRouter = Router();
 
-const registerSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Usuário deve ter ao menos 3 caracteres.")
-    .max(24, "Usuário deve ter no máximo 24 caracteres.")
-    .regex(/^[a-zA-Z0-9_]+$/, "Use apenas letras, números e underscore."),
-  email: z.string().email("E-mail inválido."),
-  password: z.string().min(8, "Senha deve ter ao menos 8 caracteres."),
-});
+const STATE_COOKIE = "discord_oauth_state";
 
-authRouter.post("/register", async (req, res) => {
-  const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.issues[0].message });
-  }
-  const { username, email, password } = parsed.data;
-
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ username }, { email }] },
+// GET /api/auth/discord — kicks off the OAuth flow. A random state value is
+// stashed in a short-lived cookie and checked on callback to prevent CSRF.
+authRouter.get("/discord", (_req, res) => {
+  const state = crypto.randomBytes(16).toString("hex");
+  res.cookie(STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: env.nodeEnv === "production",
+    sameSite: "lax",
+    maxAge: 5 * 60 * 1000,
+    path: "/api/auth/discord",
   });
-  if (existing) {
-    return res.status(409).json({ error: "Usuário ou e-mail já cadastrado." });
-  }
-
-  const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: { username, email, passwordHash },
-  });
-
-  const accessToken = await issueSession(res, user.id, user.username);
-  return res.status(201).json({ accessToken, user: publicUser(user) });
+  res.redirect(buildAuthorizeUrl(state));
 });
 
-const loginSchema = z.object({
-  usernameOrEmail: z.string().min(1),
-  password: z.string().min(1),
+authRouter.get("/discord/callback", async (req, res) => {
+  const { code, state, error } = req.query as Record<string, string | undefined>;
+  const expectedState = req.cookies?.[STATE_COOKIE];
+  res.clearCookie(STATE_COOKIE, { path: "/api/auth/discord" });
+
+  if (error) {
+    return res.redirect(`${env.clientOrigin}/login?error=discord_denied`);
+  }
+  if (!code || !state || !expectedState || state !== expectedState) {
+    return res.redirect(`${env.clientOrigin}/login?error=invalid_state`);
+  }
+
+  try {
+    const discordAccessToken = await exchangeCodeForToken(code);
+    const discordUser = await fetchDiscordUser(discordAccessToken);
+
+    const user = await upsertUserFromDiscord(discordUser.id, discordUser.username, discordAvatarUrl(discordUser));
+
+    const refreshToken = await issueRefreshToken(user.id);
+    setRefreshCookie(res, refreshToken);
+    await prisma.user.update({ where: { id: user.id }, data: { status: "online" } });
+
+    return res.redirect(`${env.clientOrigin}/app`);
+  } catch (err) {
+    console.error("[auth] discord callback failed:", err);
+    return res.redirect(`${env.clientOrigin}/login?error=discord_failed`);
+  }
 });
 
-authRouter.post("/login", async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Informe usuário/e-mail e senha." });
-  }
-  const { usernameOrEmail, password } = parsed.data;
+async function upsertUserFromDiscord(discordId: string, discordUsername: string, avatarUrl: string | null) {
+  const existing = await prisma.user.findUnique({ where: { discordId } });
+  // Only seed the avatar from Discord on first login — later logins don't
+  // clobber an avatar the person set manually in profile settings.
+  if (existing) return existing;
 
-  const user = await prisma.user.findFirst({
-    where: { OR: [{ username: usernameOrEmail }, { email: usernameOrEmail }] },
-  });
-  if (!user) {
-    return res.status(401).json({ error: "Credenciais inválidas." });
-  }
+  const username = await uniqueUsernameFrom(discordUsername);
+  return prisma.user.create({ data: { discordId, username, avatarUrl } });
+}
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    return res.status(401).json({ error: "Credenciais inválidas." });
+// Discord usernames aren't guaranteed unique in our system (different
+// discriminators/IDs can share one), so collisions get a short random suffix.
+async function uniqueUsernameFrom(base: string): Promise<string> {
+  const cleaned = base.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 20) || "user";
+  let candidate = cleaned;
+  let attempt = 0;
+  while (await prisma.user.findUnique({ where: { username: candidate } })) {
+    attempt += 1;
+    candidate = `${cleaned}${crypto.randomInt(1000, 9999)}`;
+    if (attempt > 5) break;
   }
-
-  await prisma.user.update({ where: { id: user.id }, data: { status: "online" } });
-  const accessToken = await issueSession(res, user.id, user.username);
-  return res.json({ accessToken, user: publicUser(user) });
-});
+  return candidate;
+}
 
 authRouter.post("/refresh", async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE];
@@ -115,16 +123,9 @@ authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   return res.json(publicUser(user));
 });
 
-async function issueSession(res: import("express").Response, userId: string, username: string) {
-  const refreshToken = await issueRefreshToken(userId);
-  setRefreshCookie(res, refreshToken);
-  return signAccessToken({ sub: userId, username });
-}
-
 function publicUser(user: {
   id: string;
   username: string;
-  email: string;
   avatarUrl: string | null;
   bio: string | null;
   status: string;
@@ -132,7 +133,6 @@ function publicUser(user: {
   return {
     id: user.id,
     username: user.username,
-    email: user.email,
     avatarUrl: user.avatarUrl,
     bio: user.bio,
     status: user.status,

@@ -30,7 +30,7 @@ SiteTela/
 
 ## Funcionalidades da primeira versão (MVP)
 
-- Conta de usuário (cadastro/login) com sessão via JWT + refresh token
+- Login via Discord (OAuth2) — sem cadastro/senha própria; sessão via JWT + refresh token
 - Perfil: nome de usuário, avatar (URL), bio, status online/offline
 - Sistema de amigos: buscar, solicitar, aceitar, recusar, remover
 - "Conectar" com um amigo → sala privada de compartilhamento de tela (sem servidor)
@@ -43,13 +43,14 @@ SiteTela/
 
 ## Rodando localmente
 
-Pré-requisitos: Node.js 20+ instalado.
+Pré-requisitos: Node.js 20+ instalado, e uma aplicação Discord criada em [discord.com/developers/applications](https://discord.com/developers/applications) com `http://localhost:4000/api/auth/discord/callback` cadastrado em **OAuth2 > Redirects**.
 
 ### 1. Backend
 
 ```bash
 cd server
 cp .env.example .env
+# edite .env e preencha DISCORD_CLIENT_ID e DISCORD_CLIENT_SECRET
 npm install
 npx prisma migrate dev --name init   # só na primeira vez
 npm run dev
@@ -84,6 +85,8 @@ Abra `http://localhost:5173` em duas janelas/navegadores diferentes (ou modo an�
 | `NODE_ENV` | `development` ou `production` |
 | `STUN_URLS` | Lista de servidores STUN separados por vírgula (padrão: STUN público do Google) |
 | `TURN_URL` / `TURN_USERNAME` / `TURN_CREDENTIAL` | Preencha quando tiver seu próprio TURN (coturn) rodando na VPS |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Da sua aplicação em [discord.com/developers/applications](https://discord.com/developers/applications) |
+| `DISCORD_REDIRECT_URI` | URL de callback do **backend** (não do frontend). Em produção no Render é detectada automaticamente via `RENDER_EXTERNAL_URL` |
 
 ## Hospedagem de teste
 
@@ -102,9 +105,10 @@ O repositório já inclui um [render.yaml](render.yaml) (Render Blueprint), ent�
 
 1. Crie uma conta gratuita em [render.com](https://render.com).
 2. No dashboard, clique em **New > Blueprint** e conecte o repositório do GitHub deste projeto.
-3. O Render lê o `render.yaml`, cria o serviço web e gera sozinho os segredos JWT (`generateValue: true`). Clique em **Apply** para confirmar.
-4. Aguarde o build (instala e builda `client` e `server`, roda as migrações do Prisma automaticamente).
-5. A URL pública (algo como `https://streamrooms.onrender.com`) é detectada automaticamente pelo backend via `RENDER_EXTERNAL_URL` — não precisa configurar `CLIENT_ORIGIN` manualmente.
+3. O Render lê o `render.yaml`, cria o serviço web e gera sozinho os segredos JWT (`generateValue: true`). Ele vai pedir pra você preencher manualmente `DISCORD_CLIENT_ID` e `DISCORD_CLIENT_SECRET` (não ficam no arquivo por serem segredos). Clique em **Apply** para confirmar.
+4. Lembre de cadastrar a URL de callback de produção (`https://<seu-app>.onrender.com/api/auth/discord/callback`) em **OAuth2 > Redirects** na aplicação do Discord.
+5. Aguarde o build (instala e builda `client` e `server`, roda as migrações do Prisma automaticamente).
+6. A URL pública (algo como `https://streamrooms.onrender.com`) é detectada automaticamente pelo backend via `RENDER_EXTERNAL_URL` — não precisa configurar `CLIENT_ORIGIN` manualmente.
 
 A cada novo `git push` na branch conectada, o Render builda e publica a nova versão sozinho.
 
