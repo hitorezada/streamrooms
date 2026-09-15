@@ -108,6 +108,7 @@ export function RoomView({ roomId, title, subtitle, backTo }: RoomViewProps) {
           )}
           {focusedStream ? (
             <StreamPlayer
+              key={focusedSocketId}
               stream={focusedStream}
               sharer={focusedSharer}
               quality={currentQuality.get(focusedSocketId!) ?? "auto"}
