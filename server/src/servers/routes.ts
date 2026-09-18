@@ -138,3 +138,65 @@ serversRouter.get("/:serverId/membership", async (req: AuthedRequest, res) => {
   });
   return res.json({ isMember: Boolean(membership) });
 });
+
+async function requireMembership(serverId: string, userId: string) {
+  return prisma.serverMember.findUnique({ where: { serverId_userId: { serverId, userId } } });
+}
+
+// Full member roster (online + offline) for the Discord-style sidebar list —
+// distinct from room presence, which only covers people currently inside a
+// specific screen-share room.
+serversRouter.get("/:serverId/members", async (req: AuthedRequest, res) => {
+  const membership = await requireMembership(req.params.serverId, req.userId!);
+  if (!membership) return res.status(403).json({ error: "Você não é membro deste servidor." });
+
+  const members = await prisma.serverMember.findMany({
+    where: { serverId: req.params.serverId },
+    include: { user: { select: { id: true, username: true, avatarUrl: true, status: true } } },
+  });
+
+  return res.json(members.map((m) => m.user));
+});
+
+const createMessageSchema = z.object({
+  content: z.string().max(2000).trim().optional(),
+  attachmentUrl: z.string().max(2048).optional(),
+  attachmentType: z.string().max(100).optional(),
+  attachmentName: z.string().max(255).optional(),
+});
+
+// Simple, fixed one-channel-per-server chat — not paginated by cursor for
+// the MVP, just "last 50", which is plenty for a small friend group.
+serversRouter.get("/:serverId/messages", async (req: AuthedRequest, res) => {
+  const membership = await requireMembership(req.params.serverId, req.userId!);
+  if (!membership) return res.status(403).json({ error: "Você não é membro deste servidor." });
+
+  const messages = await prisma.serverMessage.findMany({
+    where: { serverId: req.params.serverId },
+    include: { author: { select: { id: true, username: true, avatarUrl: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  return res.json(messages.reverse());
+});
+
+serversRouter.post("/:serverId/messages", async (req: AuthedRequest, res) => {
+  const membership = await requireMembership(req.params.serverId, req.userId!);
+  if (!membership) return res.status(403).json({ error: "Você não é membro deste servidor." });
+
+  const parsed = createMessageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Mensagem inválida." });
+  }
+  if (!parsed.data.content && !parsed.data.attachmentUrl) {
+    return res.status(400).json({ error: "Mensagem vazia." });
+  }
+
+  const message = await prisma.serverMessage.create({
+    data: { serverId: req.params.serverId, authorId: req.userId!, ...parsed.data },
+    include: { author: { select: { id: true, username: true, avatarUrl: true } } },
+  });
+
+  return res.status(201).json(message);
+});

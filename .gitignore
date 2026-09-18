@@ -8,5 +8,10 @@ dist/
 server/prisma/dev.db
 server/prisma/dev.db-journal
 
+# user-uploaded chat/DM attachments — ephemeral on the free tier, persistent
+# on the VPS, never something to check into git either way
+server/uploads/*
+!server/uploads/.gitkeep
+
 # recovered static mirror (kept locally only, not part of the new project)
 recovered-site/

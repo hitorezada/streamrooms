@@ -124,10 +124,15 @@ function FriendRow({
   onConnect: () => void;
   onRemove: () => void;
 }) {
+  const navigate = useNavigate();
+
   return (
     <div style={rowStyle}>
       <Avatar username={friend.username} avatarUrl={friend.avatarUrl} status={friend.status} size={32} />
       <span style={{ flex: 1, fontSize: 14 }}>{friend.username}</span>
+      <button className="btn btn-ghost" style={smallBtn} onClick={() => navigate(`/app/dms/${friend.id}`)}>
+        Mensagem
+      </button>
       <button
         className="btn btn-primary"
         style={smallBtn}

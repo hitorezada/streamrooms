@@ -29,6 +29,10 @@ model User {
 
   friendshipsInitiated Friendship[] @relation("FriendshipUserA")
   friendshipsReceived  Friendship[] @relation("FriendshipUserB")
+
+  serverMessages         ServerMessage[]
+  sentDirectMessages     DirectMessage[] @relation("DMSender")
+  receivedDirectMessages DirectMessage[] @relation("DMReceiver")
 }
 
 model RefreshToken {
@@ -80,9 +84,10 @@ model Server {
   ownerId   String
   createdAt DateTime @default(now())
 
-  owner   User           @relation("ServerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members ServerMember[]
-  rooms   Room[]
+  owner    User            @relation("ServerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members  ServerMember[]
+  rooms    Room[]
+  messages ServerMessage[]
 }
 
 model ServerMember {
@@ -107,4 +112,39 @@ model Room {
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   @@unique([serverId, position])
+}
+
+// One fixed text channel per server (no user-created channels, matches the
+// "5 fixed rooms" philosophy — just one chat, always there).
+model ServerMessage {
+  id             String   @id @default(cuid())
+  serverId       String
+  authorId       String
+  content        String?
+  attachmentUrl  String?
+  attachmentType String?
+  attachmentName String?
+  createdAt      DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([serverId, createdAt])
+}
+
+model DirectMessage {
+  id             String   @id @default(cuid())
+  senderId       String
+  receiverId     String
+  content        String?
+  attachmentUrl  String?
+  attachmentType String?
+  attachmentName String?
+  createdAt      DateTime @default(now())
+
+  sender   User @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, senderId, createdAt])
 }

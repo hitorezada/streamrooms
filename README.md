@@ -38,8 +38,10 @@ SiteTela/
 - Cada servidor nasce com 5 salas fixas de transmissão
 - Dentro da sala: lista de participantes em tempo real, quem está "AO VIVO"
 - Compartilhar tela (com áudio opcional da própria tela) via `getDisplayMedia`
-- Assistir a uma transmissão: tela cheia, volume, mutar, tamanho, qualidade (auto/720p/1080p/máxima)
+- Assistir a uma transmissão: tela cheia, volume, mutar, tamanho, qualidade (auto/720p/1080p/máxima), zoom com scroll do mouse + arrastar pra navegar (como no Discord)
 - Arquitetura em mesh WebRTC (P2P) — já preparada para múltiplas transmissões simultâneas na mesma sala
+- Chat de texto fixo por servidor (um canal "# geral", sem canais extras) e mensagens diretas entre amigos, ambos com envio de vídeo/áudio/imagem/gif
+- Lista de membros online/offline de cada servidor (independente de quem está numa sala no momento)
 
 ## Rodando localmente
 
@@ -112,7 +114,7 @@ O repositório já inclui um [render.yaml](render.yaml) (Render Blueprint), ent�
 
 A cada novo `git push` na branch conectada, o Render builda e publica a nova versão sozinho.
 
-**Limitação do plano free:** o disco é temporário — o banco SQLite (`dev.db`) reseta a cada deploy ou reinício por inatividade. Isso é normal e esperado numa hospedagem de teste; quando for pra VPS definitiva, troque para Postgres (ver seção abaixo).
+**Limitação do plano free:** o disco é temporário — o banco SQLite (`dev.db`) e os arquivos enviados no chat/DM (`server/uploads/`) resetam a cada deploy ou reinício por inatividade. Isso é normal e esperado numa hospedagem de teste; quando for pra VPS definitiva, ambos passam a ser persistentes (Postgres pro banco, disco normal pros uploads — ver seção abaixo).
 
 Isso serve a API, o Socket.IO e os arquivos estáticos do React todos na mesma porta. Configure lá as variáveis de ambiente da tabela acima e aponte um domínio com HTTPS.
 

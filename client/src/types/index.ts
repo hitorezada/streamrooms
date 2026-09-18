@@ -49,3 +49,45 @@ export interface IceServerConfig {
   username?: string;
   credential?: string;
 }
+
+export interface Attachment {
+  attachmentUrl: string | null;
+  attachmentType: string | null;
+  attachmentName: string | null;
+}
+
+export interface ServerMessage extends Attachment {
+  id: string;
+  serverId: string;
+  authorId: string;
+  content: string | null;
+  createdAt: string;
+  author: { id: string; username: string; avatarUrl: string | null };
+}
+
+export interface DirectMessage extends Attachment {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string | null;
+  createdAt: string;
+}
+
+export interface ServerMember {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+  status: "online" | "offline";
+}
+
+export interface DmInboxEntry {
+  peer: ServerMember;
+  lastMessage: { content: string | null; createdAt: string; fromMe: boolean };
+}
+
+export interface UploadResult {
+  url: string;
+  mimeType: string;
+  fileName: string;
+  fileSize: number;
+}

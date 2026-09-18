@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ServerSummary } from "../types";
 
 interface ServerRailProps {
@@ -10,6 +10,8 @@ interface ServerRailProps {
 
 export function ServerRail({ servers, activeServerId, onCreateClick, onJoinClick }: ServerRailProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const onDms = location.pathname.startsWith("/app/dms");
 
   return (
     <nav
@@ -26,8 +28,12 @@ export function ServerRail({ servers, activeServerId, onCreateClick, onJoinClick
         overflowY: "auto",
       }}
     >
-      <RailButton label="Início" active={!activeServerId} onClick={() => navigate("/app")}>
+      <RailButton label="Início" active={!activeServerId && !onDms} onClick={() => navigate("/app")}>
         SR
+      </RailButton>
+
+      <RailButton label="Mensagens diretas" active={onDms} onClick={() => navigate("/app/dms")}>
+        ✉
       </RailButton>
 
       <div style={{ width: 32, height: 1, background: "var(--border)" }} />

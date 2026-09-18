@@ -10,6 +10,8 @@ import { usersRouter } from "./users/routes";
 import { friendsRouter } from "./friends/routes";
 import { serversRouter } from "./servers/routes";
 import { roomsRouter } from "./rooms/routes";
+import { dmsRouter } from "./dms/routes";
+import { uploadsRouter, UPLOADS_DIR } from "./uploads/routes";
 import { iceServersRouter } from "./webrtc/iceServersRoute";
 import { registerSignaling } from "./webrtc/signaling";
 
@@ -27,7 +29,10 @@ app.use("/api/users", usersRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/servers", serversRouter);
 app.use("/api/rooms", roomsRouter);
+app.use("/api/dms", dmsRouter);
+app.use("/api/uploads", uploadsRouter);
 app.use("/api/webrtc", iceServersRouter);
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 // In production a single service serves the built React app alongside the API,
 // which keeps test hosting (and the later VPS move) to one deployable process.

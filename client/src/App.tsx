@@ -6,6 +6,7 @@ import { HomePage } from "./pages/HomePage";
 import { ServerPage } from "./pages/ServerPage";
 import { RoomPage } from "./pages/RoomPage";
 import { DirectRoomPage } from "./pages/DirectRoomPage";
+import { DmsPage } from "./pages/DmsPage";
 
 export function App() {
   return (
@@ -20,6 +21,8 @@ export function App() {
             <Route path="servers/:serverId" element={<ServerPage />} />
             <Route path="servers/:serverId/rooms/:roomId" element={<RoomPage />} />
             <Route path="direct/:roomId" element={<DirectRoomPage />} />
+            <Route path="dms" element={<DmsPage />} />
+            <Route path="dms/:friendId" element={<DmsPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/app" replace />} />

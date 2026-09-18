@@ -77,4 +77,29 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-export { ApiError, refreshSession };
+// Separate from `request()` because multipart uploads must NOT get the
+// forced `Content-Type: application/json` header — the browser needs to set
+// its own boundary-bearing multipart content type on the FormData body.
+async function uploadFile<T>(path: string, file: File, retry = true): Promise<T> {
+  const headers = new Headers();
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`/api${path}`, { method: "POST", headers, body: formData, credentials: "include" });
+
+  if (res.status === 401 && retry) {
+    const refreshed = await refreshSession();
+    if (refreshed) return uploadFile<T>(path, file, false);
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Erro ao enviar arquivo." }));
+    throw new ApiError(res.status, body.error ?? "Erro ao enviar arquivo.");
+  }
+
+  return res.json();
+}
+
+export { ApiError, refreshSession, uploadFile };
