@@ -36,6 +36,11 @@ export function DmsPage() {
     (payload: Parameters<typeof api.post>[1]) => api.post<ChatMessage>(`/dms/${friendId}/messages`, payload),
     [friendId]
   );
+  const deleteMessage = useCallback(
+    (messageId: string) => api.delete<void>(`/dms/${friendId}/messages/${messageId}`),
+    [friendId]
+  );
+  const canDelete = useCallback((m: ChatMessage) => m.author.id === user?.id, [user?.id]);
 
   if (!user) return null;
 
@@ -106,6 +111,8 @@ export function DmsPage() {
                 key={friendId}
                 fetchMessages={fetchMessages}
                 sendMessage={sendMessage}
+                deleteMessage={deleteMessage}
+                canDelete={canDelete}
                 currentUserId={user.id}
                 emptyHint="Diga oi 👋"
               />

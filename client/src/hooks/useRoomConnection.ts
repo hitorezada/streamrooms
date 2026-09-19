@@ -5,7 +5,7 @@ import type { IceServerConfig, Participant } from "../types";
 import { qualityToParams, type StreamQuality } from "./quality";
 import { useSocket } from "./useSocket";
 
-interface UseRoomConnectionResult {
+export interface UseRoomConnectionResult {
   connected: boolean;
   participants: Participant[];
   mySocketId: string | null;

@@ -12,6 +12,8 @@ async function requireFriendship(userId: string, friendId: string) {
   return prisma.friendship.findUnique({ where: { userAId_userBId: { userAId: a, userBId: b } } });
 }
 
+const AUTHOR_SELECT = { id: true, username: true, avatarUrl: true } as const;
+
 // GET /api/dms — one row per friend with a conversation, most recent first,
 // for a DM inbox list (kept separate from the plain friends list since not
 // every friend has messaged yet).
@@ -44,6 +46,17 @@ dmsRouter.get("/", async (req: AuthedRequest, res) => {
   );
 });
 
+// DM messages don't naturally have an "author" object the way server chat
+// does (sender/receiver are just IDs) — the chat UI is shared between both,
+// so every message shape it renders needs the same `author` field, or it
+// crashes trying to read `message.author.username`.
+function withAuthor<T extends { senderId: string; sender: { id: string; username: string; avatarUrl: string | null } }>(
+  message: T
+) {
+  const { sender, ...rest } = message;
+  return { ...rest, author: sender };
+}
+
 dmsRouter.get("/:friendId/messages", async (req: AuthedRequest, res) => {
   const userId = req.userId!;
   const friendId = req.params.friendId;
@@ -58,11 +71,12 @@ dmsRouter.get("/:friendId/messages", async (req: AuthedRequest, res) => {
         { senderId: friendId, receiverId: userId },
       ],
     },
+    include: { sender: { select: AUTHOR_SELECT } },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
 
-  return res.json(messages.reverse());
+  return res.json(messages.reverse().map(withAuthor));
 });
 
 const createDmSchema = z.object({
@@ -89,7 +103,21 @@ dmsRouter.post("/:friendId/messages", async (req: AuthedRequest, res) => {
 
   const message = await prisma.directMessage.create({
     data: { senderId: userId, receiverId: friendId, ...parsed.data },
+    include: { sender: { select: AUTHOR_SELECT } },
   });
 
-  return res.status(201).json(message);
+  return res.status(201).json(withAuthor(message));
+});
+
+// DMs have no moderation hierarchy (it's just the two of you) — everyone
+// can only ever delete their own message.
+dmsRouter.delete("/:friendId/messages/:messageId", async (req: AuthedRequest, res) => {
+  const message = await prisma.directMessage.findUnique({ where: { id: req.params.messageId } });
+  if (!message) return res.status(404).json({ error: "Mensagem não encontrada." });
+  if (message.senderId !== req.userId) {
+    return res.status(403).json({ error: "Você só pode excluir suas próprias mensagens." });
+  }
+
+  await prisma.directMessage.delete({ where: { id: message.id } });
+  return res.status(204).send();
 });

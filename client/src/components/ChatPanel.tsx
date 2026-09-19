@@ -13,14 +13,17 @@ export interface ChatMessage extends Attachment {
 interface ChatPanelProps {
   fetchMessages: () => Promise<ChatMessage[]>;
   sendMessage: (payload: { content?: string; attachmentUrl?: string; attachmentType?: string; attachmentName?: string }) => Promise<ChatMessage>;
+  deleteMessage: (messageId: string) => Promise<void>;
+  canDelete: (message: ChatMessage) => boolean;
   currentUserId: string;
   emptyHint: string;
 }
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_ATTACHMENT_MB = 25;
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
-export function ChatPanel({ fetchMessages, sendMessage, currentUserId, emptyHint }: ChatPanelProps) {
+export function ChatPanel({ fetchMessages, sendMessage, deleteMessage, canDelete, currentUserId, emptyHint }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -101,15 +104,37 @@ export function ChatPanel({ fetchMessages, sendMessage, currentUserId, emptyHint
     }
   }
 
+  async function handleDelete(id: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    try {
+      await deleteMessage(id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao excluir mensagem.");
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 2 }}>
         {messages.length === 0 && (
           <span style={{ color: "var(--text-2)", fontSize: 13, margin: "auto" }}>{emptyHint}</span>
         )}
-        {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} isMine={m.author.id === currentUserId} />
-        ))}
+        {messages.map((m, i) => {
+          const prev = messages[i - 1];
+          const grouped =
+            prev &&
+            prev.author.id === m.author.id &&
+            new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_WINDOW_MS;
+          return (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              isMine={m.author.id === currentUserId}
+              grouped={Boolean(grouped)}
+              onDelete={canDelete(m) ? () => handleDelete(m.id) : undefined}
+            />
+          );
+        })}
       </div>
 
       {error && <div style={{ color: "var(--live-red)", fontSize: 13, padding: "0 20px 8px" }}>{error}</div>}
@@ -120,7 +145,7 @@ export function ChatPanel({ fetchMessages, sendMessage, currentUserId, emptyHint
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: "12px 20px",
+          padding: "14px 20px",
           borderTop: "1px solid var(--border)",
         }}
       >
@@ -134,7 +159,7 @@ export function ChatPanel({ fetchMessages, sendMessage, currentUserId, emptyHint
         <button
           type="button"
           className="btn btn-ghost"
-          style={{ padding: "8px 12px", fontSize: 16, lineHeight: 1 }}
+          style={{ padding: "9px 12px", fontSize: 16, lineHeight: 1, borderRadius: "50%" }}
           title="Anexar vídeo, áudio ou imagem/gif"
           disabled={sending}
           onClick={() => fileInputRef.current?.click()}
@@ -147,8 +172,9 @@ export function ChatPanel({ fetchMessages, sendMessage, currentUserId, emptyHint
           value={text}
           onChange={(e) => setText(e.target.value)}
           disabled={sending}
+          style={{ borderRadius: 999 }}
         />
-        <button className="btn btn-primary" type="submit" disabled={sending || !text.trim()} style={{ padding: "8px 16px" }}>
+        <button className="btn btn-primary" type="submit" disabled={sending || !text.trim()} style={{ padding: "9px 18px", borderRadius: 999 }}>
           Enviar
         </button>
       </form>
@@ -156,48 +182,104 @@ export function ChatPanel({ fetchMessages, sendMessage, currentUserId, emptyHint
   );
 }
 
-function MessageBubble({ message, isMine }: { message: ChatMessage; isMine: boolean }) {
+function MessageBubble({
+  message,
+  isMine,
+  grouped,
+  onDelete,
+}: {
+  message: ChatMessage;
+  isMine: boolean;
+  grouped: boolean;
+  onDelete?: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <div style={{ display: "flex", gap: 10, flexDirection: isMine ? "row-reverse" : "row" }}>
-      <Avatar username={message.author.username} avatarUrl={message.author.avatarUrl} size={30} />
-      <div style={{ maxWidth: "70%", display: "flex", flexDirection: "column", gap: 4, alignItems: isMine ? "flex-end" : "flex-start" }}>
-        <span style={{ fontSize: 11, color: "var(--text-2)" }}>
-          {message.author.username} · {formatTime(message.createdAt)}
-        </span>
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        gap: 10,
+        padding: "3px 8px",
+        marginTop: grouped ? 0 : 14,
+        borderRadius: "var(--radius-sm)",
+        background: hovered ? "rgba(255,255,255,0.03)" : "transparent",
+        position: "relative",
+      }}
+    >
+      <div style={{ width: 34, flexShrink: 0 }}>
+        {!grouped && <Avatar username={message.author.username} avatarUrl={message.author.avatarUrl} size={34} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {!grouped && (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: isMine ? "var(--blue-400)" : "var(--pink-400)" }}>
+              {message.author.username}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--text-2)" }}>{formatTime(message.createdAt)}</span>
+          </div>
+        )}
         {message.content && (
-          <div
-            style={{
-              background: isMine ? "var(--blue-600)" : "var(--bg-3)",
-              color: "var(--text-0)",
-              padding: "8px 12px",
-              borderRadius: "var(--radius-md)",
-              fontSize: 14,
-              wordBreak: "break-word",
-              whiteSpace: "pre-wrap",
-            }}
-          >
+          <div style={{ fontSize: 14.5, color: "var(--text-0)", wordBreak: "break-word", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
             {message.content}
           </div>
         )}
-        {message.attachmentUrl && <AttachmentView url={message.attachmentUrl} type={message.attachmentType} name={message.attachmentName} />}
+        {message.attachmentUrl && (
+          <div style={{ marginTop: message.content ? 6 : 0 }}>
+            <AttachmentView url={message.attachmentUrl} type={message.attachmentType} name={message.attachmentName} />
+          </div>
+        )}
       </div>
+      {onDelete && hovered && (
+        <button
+          onClick={onDelete}
+          title="Excluir mensagem"
+          style={{
+            position: "absolute",
+            top: -10,
+            right: 8,
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            background: "var(--bg-2)",
+            border: "1px solid var(--border)",
+            color: "var(--live-red)",
+            fontSize: 13,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }
 
 function AttachmentView({ url, type, name }: { url: string; type: string | null; name: string | null }) {
+  const mediaStyle: React.CSSProperties = {
+    maxWidth: 320,
+    maxHeight: 260,
+    borderRadius: "var(--radius-md)",
+    display: "block",
+    border: "1px solid var(--border)",
+  };
   if (type?.startsWith("video/")) {
-    return <video src={url} controls style={{ maxWidth: 280, borderRadius: "var(--radius-md)", display: "block" }} />;
+    return <video src={url} controls style={mediaStyle} />;
   }
   if (type?.startsWith("audio/")) {
-    return <audio src={url} controls style={{ maxWidth: 280 }} />;
+    return <audio src={url} controls style={{ maxWidth: 300 }} />;
   }
   if (type?.startsWith("image/")) {
-    return <img src={url} alt={name ?? "anexo"} style={{ maxWidth: 280, borderRadius: "var(--radius-md)", display: "block" }} />;
+    return <img src={url} alt={name ?? "anexo"} style={{ ...mediaStyle, objectFit: "cover" }} />;
   }
   return (
     <a href={url} target="_blank" rel="noreferrer" style={{ color: "var(--blue-400)", fontSize: 13 }}>
-      {name ?? "Arquivo anexado"}
+      📄 {name ?? "Arquivo anexado"}
     </a>
   );
 }

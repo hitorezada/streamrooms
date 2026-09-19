@@ -200,3 +200,25 @@ serversRouter.post("/:serverId/messages", async (req: AuthedRequest, res) => {
 
   return res.status(201).json(message);
 });
+
+// Anyone can delete their own message; the server owner can additionally
+// moderate and delete anyone's (there's no separate admin/role concept yet —
+// ownership is the only privilege level, which matches how the rest of the
+// server model already works).
+serversRouter.delete("/:serverId/messages/:messageId", async (req: AuthedRequest, res) => {
+  const server = await prisma.server.findUnique({ where: { id: req.params.serverId } });
+  if (!server) return res.status(404).json({ error: "Servidor não encontrado." });
+
+  const message = await prisma.serverMessage.findUnique({ where: { id: req.params.messageId } });
+  if (!message || message.serverId !== server.id) {
+    return res.status(404).json({ error: "Mensagem não encontrada." });
+  }
+
+  const canDelete = message.authorId === req.userId || server.ownerId === req.userId;
+  if (!canDelete) {
+    return res.status(403).json({ error: "Você não pode excluir esta mensagem." });
+  }
+
+  await prisma.serverMessage.delete({ where: { id: message.id } });
+  return res.status(204).send();
+});

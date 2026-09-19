@@ -4,7 +4,6 @@ import { LoginPage } from "./pages/LoginPage";
 import { AppLayout } from "./pages/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { ServerPage } from "./pages/ServerPage";
-import { RoomPage } from "./pages/RoomPage";
 import { DirectRoomPage } from "./pages/DirectRoomPage";
 import { DmsPage } from "./pages/DmsPage";
 
@@ -19,7 +18,7 @@ export function App() {
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<HomePage />} />
             <Route path="servers/:serverId" element={<ServerPage />} />
-            <Route path="servers/:serverId/rooms/:roomId" element={<RoomPage />} />
+            <Route path="servers/:serverId/rooms/:roomId" element={<ServerPage />} />
             <Route path="direct/:roomId" element={<DirectRoomPage />} />
             <Route path="dms" element={<DmsPage />} />
             <Route path="dms/:friendId" element={<DmsPage />} />
