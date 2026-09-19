@@ -8,20 +8,20 @@ interface QualityParams {
 // Applied per-viewer on the sharer's RTCRtpSender for that specific peer
 // connection, since each viewer gets its own connection (mesh, no SFU) —
 // this makes per-viewer quality a real, independent knob rather than a
-// shared cap for the whole room.
+// shared cap for the whole room. Capture is already hard-capped at 1080p
+// (see useRoomConnection's getDisplayMedia constraints), so these bitrates
+// only need to cover up to 1080p60 — 4Mbps was starving 60fps motion content
+// and showing up as visible compression/stutter, these are tuned higher.
 export function qualityToParams(quality: StreamQuality): QualityParams {
   switch (quality) {
     case "720p":
-      return { scaleResolutionDownBy: 1.5, maxBitrate: 2_500_000 };
+      return { scaleResolutionDownBy: 1.5, maxBitrate: 3_500_000 };
     case "1080p":
-      return { scaleResolutionDownBy: 1, maxBitrate: 4_500_000 };
+      return { scaleResolutionDownBy: 1, maxBitrate: 8_000_000 };
     case "max":
-      return { scaleResolutionDownBy: 1, maxBitrate: 10_000_000 };
+      return { scaleResolutionDownBy: 1, maxBitrate: 15_000_000 };
     case "auto":
     default:
-      // Still capped (not truly unbounded) — an uncapped encoder tends to
-      // chase the source's full native bitrate, which is most of what was
-      // driving the high GPU usage reported in testing.
-      return { scaleResolutionDownBy: 1, maxBitrate: 4_000_000 };
+      return { scaleResolutionDownBy: 1, maxBitrate: 6_000_000 };
   }
 }

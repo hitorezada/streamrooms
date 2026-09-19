@@ -122,6 +122,7 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
       sharerConnectionsRef.current.set(viewerSocketId, pc);
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      preferEfficientVideoCodec(pc);
 
       // Cap encoding from the start ("auto" defaults) instead of leaving it
       // unbounded until the viewer touches the quality selector — an
@@ -129,10 +130,7 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
       // browser felt like, which is most of what was driving high GPU usage.
       const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
       if (videoSender) {
-        const params = videoSender.getParameters();
-        const { scaleResolutionDownBy, maxBitrate } = qualityToParams("auto");
-        params.encodings = [{ scaleResolutionDownBy, ...(maxBitrate ? { maxBitrate } : {}) }];
-        await videoSender.setParameters(params).catch(() => {});
+        await applyQualityToSender(videoSender, "auto");
       }
 
       pc.onicecandidate = (event) => {
@@ -171,12 +169,7 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
       const pc = sharerConnectionsRef.current.get(fromSocketId);
       const sender = pc?.getSenders().find((s) => s.track?.kind === "video");
       if (!sender) return;
-      const params = sender.getParameters();
-      const { scaleResolutionDownBy, maxBitrate } = qualityToParams(quality);
-      params.encodings = [
-        { scaleResolutionDownBy, ...(maxBitrate ? { maxBitrate } : {}) },
-      ];
-      await sender.setParameters(params).catch(() => {});
+      await applyQualityToSender(sender, quality);
     }
 
     // When two people mutually watch each other, both a sharerConnections
@@ -360,4 +353,46 @@ export function useRoomConnection(roomId: string | undefined): UseRoomConnection
     setQuality,
     currentQuality,
   };
+}
+
+// H264 has hardware encode/decode on basically every GPU that matters here
+// (Windows/Chrome/Edge, per the spec's target platforms); VP8 — the codec
+// Chrome otherwise tends to default to — is typically software-only, which
+// is a meaningfully bigger CPU/GPU cost for the same stream. Falls back to
+// whatever's available if H264 isn't offered (e.g. some Linux setups).
+function preferEfficientVideoCodec(pc: RTCPeerConnection) {
+  const transceiver = pc.getTransceivers().find((t) => t.sender.track?.kind === "video");
+  if (!transceiver || typeof transceiver.setCodecPreferences !== "function") return;
+
+  const capabilities = (window.RTCRtpSender as typeof RTCRtpSender | undefined)?.getCapabilities?.("video");
+  if (!capabilities) return;
+
+  const rank = (mimeType: string) => {
+    const lower = mimeType.toLowerCase();
+    if (lower.includes("h264")) return 3;
+    if (lower.includes("vp9")) return 2;
+    if (lower.includes("vp8")) return 1;
+    return 0;
+  };
+
+  const sorted = [...capabilities.codecs].sort((a, b) => rank(b.mimeType) - rank(a.mimeType));
+  try {
+    transceiver.setCodecPreferences(sorted);
+  } catch {
+    // Non-fatal — worst case the browser's default codec negotiation applies.
+  }
+}
+
+// Centralizes encoding + degradation behavior so both the initial "auto"
+// setup and later quality-selector changes stay consistent. degradationPreference
+// "maintain-framerate" tells the encoder that if it's under CPU/bandwidth
+// pressure it should drop resolution before it drops frames — matches
+// wanting a constant 30/60fps over a slightly softer image under load,
+// rather than visible stutter.
+async function applyQualityToSender(sender: RTCRtpSender, quality: StreamQuality) {
+  const params = sender.getParameters();
+  const { scaleResolutionDownBy, maxBitrate } = qualityToParams(quality);
+  params.encodings = [{ scaleResolutionDownBy, ...(maxBitrate ? { maxBitrate } : {}) }];
+  (params as RTCRtpSendParameters).degradationPreference = "maintain-framerate";
+  await sender.setParameters(params).catch(() => {});
 }
